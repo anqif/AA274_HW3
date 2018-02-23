@@ -1,0 +1,111 @@
+\documentclass[12pt]{article}
+\usepackage{fullpage,graphicx,psfrag,url,ar,rotating,float}
+\usepackage[small,bf]{caption}
+\usepackage{amsmath,amssymb,enumitem,bbm,subcaption,multirow}
+\setlength{\captionmargin}{20pt}
+\setlist[enumerate]{label=(\roman*)}
+
+\title{\Large{AA274 (Winter 2017-18): Problem Set 3}}
+\author{Anqi Fu}
+
+\begin{document}
+\maketitle
+
+\section{Extended Kalman Filter (EKF)}
+\begin{enumerate}
+	\item See submitted code. Let the state variables be $\mathbf{x}(t) = (x(t), y(t), \theta(t))$ and the control variables be $\mathbf{u}(t) = (V(t), \omega(t))$. The differential drive model is
+	\begin{align*}
+		\dot x(t) &= V(t)\cos(\theta(t)) \\
+		\dot y(t) &= V(t)\sin(\theta(t)) \\
+		\dot \theta(t) &= \omega(t),
+	\end{align*}
+	which we can discretize by assuming a zero-order hold on the control, i.e. $\mathbf{u}(t)$ is constant over a time interval of length $dt$. Then we can integrate to get
+	\[
+		\theta_t - \theta_{t-dt} = \int_{t-dt}^t \dot \theta(s)ds = \int_{t-dt}^t \omega(s)ds = \omega_t\int_{t-dt}^tds = \omega_tdt.
+	\]
+	If $\omega(t) = 0$ over the interval, $\theta(t)$ remains constant, so our coordinates can be found easily by integrating
+	\begin{align*}
+		x_t - x_{t-dt} &= \int_{t-dt}^t \dot x(s)ds = \int_{t-dt}^t V(s)\cos(\theta(s))ds = V_t\cos(\theta_{t-dt})dt \\
+		y_t - y_{t-dt} &= \int_{t-dt}^t \dot y(s)ds = \int_{t-dt}^t V(s)\sin(\theta(s))ds = V_t\sin(\theta_{t-dt})dt.
+	\end{align*}
+	With a slight abuse of notation, We may thus write
+	\[
+		\mathbf{x}_t = \left(\begin{array}{c}
+		x_t \\
+		y_t \\
+		\theta_t\end{array}\right) = \left(\begin{array}{c}
+		x_{t-1} + V_t\cos(\theta_{t-1})dt \\
+		y_{t-1} + V_t\sin(\theta_{t-1})dt \\
+		\theta_{t-1} + \omega_tdt
+		\end{array}\right) = g(\mathbf{x}_{t-1}, \mathbf{u}_t)
+	\]
+	and the Jacobians of $g$ with respect to $\mathbf{x}$ and $\mathbf{u}$ are, respectively,
+	\[
+		G_x = \left(\begin{array}{ccc}
+		1 & 0 & -V_t\sin(\theta_{t-1})dt \\
+		0 & 1 & V_t\cos(\theta_{t-1})dt \\
+		0 & 0 & 1
+		\end{array}\right) \quad \mbox{and} \quad
+		G_u = \left(\begin{array}{cc}
+		\cos(\theta_{t-1})dt & 0 \\
+		\sin(\theta_{t-1})dt & 0 \\
+		0 & dt
+		\end{array}\right).
+	\]
+	If $\omega(t) \neq 0$, we exploit the fact that $\dot \theta(t) = \omega(t)$ to get
+	\begin{align*}
+		x_t - x_{t-dt} &= \int_{t-dt}^t V(s)\cos(\theta(s)) \frac{\dot \theta(s)}{\omega(s)}ds = \frac{V_t}{\omega_t}\int_{t-dt}^t \cos(\theta(s)) \dot \theta(s)ds \\
+		&= \frac{V_t}{\omega_t} (\sin(\theta_t) - \sin(\theta_{t-dt})) = \frac{V_t}{\omega_t}(\sin(\theta_{t-dt}+ \omega_tdt) - \sin(\theta_{t-dt})) \\
+		y_t - y_{t-dt} &= \frac{V_t}{\omega_t}\int_{t-dt}^t \sin(\theta(s))\dot \theta(s)ds = \frac{V_t}{\omega_t}(-\cos(\theta_{t-dt} + \omega_tdt) + \cos(\theta_{t-dt}))
+	\end{align*}
+	Our discrete model becomes
+	\[
+		\mathbf{x}_t = \left(\begin{array}{c}
+		x_t \\
+		y_t \\
+		\theta_t\end{array}\right) = \left(\begin{array}{c}
+		x_{t-1} + \frac{V_t}{\omega_t}(\sin(\theta_{t-1}+ \omega_tdt) - \sin(\theta_{t-1})) \\
+		y_{t-1} - \frac{V_t}{\omega_t}(\cos(\theta_{t-1} + \omega_tdt) - \cos(\theta_{t-1})) \\
+		\theta_{t-1} + \omega_tdt
+		\end{array}\right) = g(\mathbf{x}_{t-1}, \mathbf{u}_t)
+	\]
+	with Jacobians
+	\begin{align*}
+		G_x &= \left(\begin{array}{ccc}
+		1 & 0 & \frac{V_t}{\omega_t}(\cos(\theta_{t-1} + \omega_tdt) - \cos(\theta_{t-1})) \\
+		0 & 1 & \frac{V_t}{\omega_t}(\sin(\theta_{t-1} + \omega_tdt) - \sin(\theta_{t-1})) \\
+		0 & 0 & 1
+		\end{array}\right) \\
+		G_u &= \frac{1}{\omega_t}\left(\begin{array}{cc}
+		\sin(\theta_t) - \sin(\theta_{t-1}) & -V_t(\frac{1}{\omega_t}(\sin(\theta_t) - \sin(\theta_{t-1})) - \cos(\theta_t)dt) \\
+		-\cos(\theta_t) + \cos(\theta_{t-1}) & V_t(\frac{1}{\omega_t}(\cos(\theta_t) - \cos(\theta_{t-1})) + \sin(\theta_t)dt) \\
+		0 & \omega_tdt
+		\end{array}\right).
+	\end{align*}
+	where $\theta_t := \theta_{t-1} + \omega_tdt$.
+	\item See submitted code. Let the belief state at $t-1$ be distributed as $\mathcal{N}(\mathbf{x}_{t-1}, P_{t-1})$. We model the dynamic certainty with white noise $\nu \sim \mathcal{N}(\mathbf{0}, Q)$ applied to the control input. For a time step of $dt$, the EKF prediction step is
+	\begin{align*}
+		\bar{\mathbf{x}}_t &= g(\mathbf{x}_{t-1}, \mathbf{u}_t) \\
+		\bar P_t &= G_xP_{t-1}G_x^T + dt \cdot G_uQG_u^T.
+	\end{align*}
+	\item 
+	\item 
+	\item 
+	\item 
+	\item 
+\end{enumerate}
+
+\section{EKF Simultaneous Localization and Mapping (SLAM)}
+\begin{enumerate}
+	\item 
+	\item 
+	\item 
+\end{enumerate}
+
+\section{Turtlebot Localization}
+\begin{enumerate}
+	\item See submitted code.
+	\item See submitted code.
+\end{enumerate}
+
+\end{document}

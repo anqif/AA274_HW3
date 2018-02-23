@@ -21,6 +21,8 @@ class EKF(object):
 
         #### TODO ####
         # update self.x, self.P
+        self.x = g
+        self.P = Gx.dot(self.P).dot(Gx.T) + dt*Gu.dot(self.Q).dot(Gu.T)
         ##############
 
     # Propagates exact (nonlinear) state dynamics; also returns associated Jacobians for EKF linearization
@@ -76,6 +78,23 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute g, Gx, Gu
+        if np.abs(om) < 1e-9:
+            g = np.array([x + v*np.cos(th)*dt, y + v*np.sin(th)*dt, th + om*dt])
+            Gx = np.array([[1, 0, -v*np.sin(th)*dt],
+                           [0, 1,  v*np.cos(th)*dt],
+                           [0, 0, 1]])
+            Gu = np.array([[np.cos(th)*dt, 0], 
+                           [np.sin(th)*dt, 0], 
+                           [0, dt]])
+        else:
+            th_n = th + om*dt
+            g = np.array([x + (v/om)*(np.sin(th_n) - np.sin(th)), y - (v/om)*(np.cos(th_n) - np.cos(th)), th_n])
+            Gx = np.array([[1, 0, (v/om)*(np.cos(th_n) - np.cos(th))], 
+                           [0, 1, (v/om)*(np.sin(th_n) - np.sin(th))], 
+                           [0, 0, 1]])
+            Gu = np.array([[(np.sin(th_n) - np.sin(th))/om, (v/om**2)*(np.sin(th) - np.sin(th_n) + om*np.cos(th_n)*dt)], 
+                           [(-np.cos(th_n) + np.cos(th))/om, (v/om**2)*(-np.cos(th) + np.cos(th_n) + om*np.sin(th_n)*dt)], 
+                           [0, dt]])
         ##############
 
         return g, Gx, Gu
