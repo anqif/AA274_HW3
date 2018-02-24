@@ -4,6 +4,27 @@ import scipy.linalg    # you may find scipy.linalg.block_diag useful
 from ExtractLines import ExtractLines, normalize_line_parameters, angle_difference
 from maze_sim_parameters import LineExtractionParams, NoiseParams, MapParams
 
+# Helper function for computing transition model.
+def transition_model_EKF(v, om, x, y, th, dt):
+    if np.abs(om) < 1e-10:
+        g = np.array([x + v*np.cos(th)*dt, y + v*np.sin(th)*dt, th + om*dt])
+        Gx = np.array([[1, 0, -v*np.sin(th)*dt],
+                       [0, 1,  v*np.cos(th)*dt],
+                       [0, 0, 1]])
+        Gu = np.array([[np.cos(th)*dt, 0], 
+                       [np.sin(th)*dt, 0], 
+                       [0, dt]])
+    else:
+        th_n = th + om*dt
+        g = np.array([x + (v/om)*(np.sin(th_n) - np.sin(th)), y - (v/om)*(np.cos(th_n) - np.cos(th)), th_n])
+        Gx = np.array([[1, 0, (v/om)*(np.cos(th_n) - np.cos(th))], 
+                       [0, 1, (v/om)*(np.sin(th_n) - np.sin(th))], 
+                       [0, 0, 1]])
+        Gu = np.array([[(np.sin(th_n) - np.sin(th))/om, (v/om**2)*(np.sin(th) - np.sin(th_n) + om*np.cos(th_n)*dt)], 
+                       [(-np.cos(th_n) + np.cos(th))/om, (v/om**2)*(-np.cos(th) + np.cos(th_n) + om*np.sin(th_n)*dt)], 
+                       [0, dt]])
+    return g, Gx, Gu
+
 class EKF(object):
 
     def __init__(self, x0, P0, Q):
@@ -48,6 +69,10 @@ class EKF(object):
 
         #### TODO ####
         # update self.x, self.P
+        Sigma = H.dot(self.P).dot(H.T) + R
+        K = self.P.dot(H.T).dot(np.linalg.inv(Sigma))
+        self.x += K.dot(z)
+        self.P -= K.dot(Sigma).dot(K.T)
         ##############
 
     # Converts raw measurement into the relevant Gaussian form (e.g., a dimensionality reduction);
@@ -78,23 +103,7 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute g, Gx, Gu
-        if np.abs(om) < 1e-9:
-            g = np.array([x + v*np.cos(th)*dt, y + v*np.sin(th)*dt, th + om*dt])
-            Gx = np.array([[1, 0, -v*np.sin(th)*dt],
-                           [0, 1,  v*np.cos(th)*dt],
-                           [0, 0, 1]])
-            Gu = np.array([[np.cos(th)*dt, 0], 
-                           [np.sin(th)*dt, 0], 
-                           [0, dt]])
-        else:
-            th_n = th + om*dt
-            g = np.array([x + (v/om)*(np.sin(th_n) - np.sin(th)), y - (v/om)*(np.cos(th_n) - np.cos(th)), th_n])
-            Gx = np.array([[1, 0, (v/om)*(np.cos(th_n) - np.cos(th))], 
-                           [0, 1, (v/om)*(np.sin(th_n) - np.sin(th))], 
-                           [0, 0, 1]])
-            Gu = np.array([[(np.sin(th_n) - np.sin(th))/om, (v/om**2)*(np.sin(th) - np.sin(th_n) + om*np.cos(th_n)*dt)], 
-                           [(-np.cos(th_n) + np.cos(th))/om, (v/om**2)*(-np.cos(th) + np.cos(th_n) + om*np.sin(th_n)*dt)], 
-                           [0, dt]])
+        g, Gx, Gu = transition_model_EKF(v, om, x, y, th, dt)
         ##############
 
         return g, Gx, Gu
@@ -111,6 +120,32 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute h, Hx
+        x_rob, y_rob, th_rob = self.x
+        x_cam, y_cam, th_cam = self.tf_base_to_camera
+
+        def rotate(x, y, theta):
+            R = np.array([[np.cos(theta), -np.sin(theta)],
+                          [np.sin(theta),  np.cos(theta)]])
+            xy = np.array([[x, y]]).T
+            x_rot, y_rot = np.squeeze(R.dot(xy))
+            return np.array([x_rot, y_rot])
+
+        # Map camera from robot's base frame to world frame.
+        p_cam_w = rotate(x_cam, y_cam, th_rob)
+        p_cam_w += np.array([x_rob, y_rob])
+
+        # Project camera onto line in world frame.
+        p_lin = np.array([r*np.cos(alpha), r*np.sin(alpha)])
+        proj = p_cam_w.dot(p_lin)/np.linalg.norm(p_lin)
+
+        # Calculate magnitude and angle.
+        r_c = r - proj
+        alpha_c = alpha - th_rob - th_cam
+        h = np.array([alpha_c, r_c])
+
+        # TODO: Compute Hx
+        Hx = np.array([[0, 0, -1],
+                       [0, 0, 0]])
         ##############
 
         flipped, h = normalize_line_parameters(h)
@@ -132,6 +167,29 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute v_list, R_list, H_list
+        I = rawZ.shape[1]
+        J = self.map_lines.shape[1]
+
+        # Compute Mahalanobis distance.
+        def mahalanobis(m, z, R):
+            h, Hx = self.map_line_to_predicted_measurement(m)
+            v = z - h   # innovation
+            S = Hx.dot(self.P).dot(Hx.T) + R   # innovation covariance
+            d = v.T.dot(np.linalg.inv(S)).dot(v)   # Mahalanobis distance
+            return (d, v, R, Hx)
+
+        v_list = []
+        R_list = []
+        H_list = []
+        for i in range(I):
+            mahaVals = [mahalanobis(self.map_lines[:,j], rawZ[:,i], rawR[i]) for j in range(J)]
+            midx = np.argmin([val[0] for val in mahaVals])
+            d_min, v_min, R_min, Hx_min = mahaVals[midx]
+
+            if d_min < self.g**2:
+                v_list += [v_min]
+                R_list += [R_min]
+                H_list += [Hx_min]
         ##############
 
         return v_list, R_list, H_list
@@ -146,6 +204,9 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute z, R, H
+        z = np.vstack(v_list)
+        R = scipy.linalg.block_diag(R_list)
+        H = np.vstack(H_list)
         ##############
 
         return z, R, H
@@ -166,9 +227,11 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute g, Gx, Gu (some shape hints below)
-        # g = np.copy(self.x)
-        # Gx = np.eye(self.x.size)
-        # Gu = np.zeros((self.x.size, 2))
+        g = np.copy(self.x)
+        Gx = np.eye(self.x.size)
+        Gu = np.zeros((self.x.size, 2))
+
+        g[:3], Gx[:3,:3], Gu[:3,:] = transition_model_EKF(v, om, x, y, th, dt)
         ##############
 
         return g, Gx, Gu
@@ -189,6 +252,9 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute z, R, H (should be identical to Localization_EKF.measurement_model above)
+        z = np.vstack(v_list)
+        R = scipy.linalg.block_diag(R_list)
+        H = np.vstack(H_list)
         ##############
 
         return z, R, H

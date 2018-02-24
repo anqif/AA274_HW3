@@ -71,14 +71,14 @@
 	\]
 	with Jacobians
 	\begin{align*}
-		G_x &= \left(\begin{array}{ccc}
+		G_x = &\left(\begin{array}{ccc}
 		1 & 0 & \frac{V_t}{\omega_t}(\cos(\theta_{t-1} + \omega_tdt) - \cos(\theta_{t-1})) \\
 		0 & 1 & \frac{V_t}{\omega_t}(\sin(\theta_{t-1} + \omega_tdt) - \sin(\theta_{t-1})) \\
 		0 & 0 & 1
 		\end{array}\right) \\
-		G_u &= \frac{1}{\omega_t}\left(\begin{array}{cc}
-		\sin(\theta_t) - \sin(\theta_{t-1}) & -V_t(\frac{1}{\omega_t}(\sin(\theta_t) - \sin(\theta_{t-1})) - \cos(\theta_t)dt) \\
-		-\cos(\theta_t) + \cos(\theta_{t-1}) & V_t(\frac{1}{\omega_t}(\cos(\theta_t) - \cos(\theta_{t-1})) + \sin(\theta_t)dt) \\
+		G_u = \frac{1}{\omega_t}&\left(\begin{array}{cc}
+		\sin(\theta_t) - \sin(\theta_{t-1}) & -\frac{V_t}{\omega_t}(\sin(\theta_t) - \sin(\theta_{t-1})) + V_t\cos(\theta_t)dt \\
+		-\cos(\theta_t) + \cos(\theta_{t-1}) & \frac{V_t}{\omega_t}(\cos(\theta_t) - \cos(\theta_{t-1})) + V_t\sin(\theta_t)dt \\
 		0 & \omega_tdt
 		\end{array}\right).
 	\end{align*}
@@ -88,7 +88,16 @@
 		\bar{\mathbf{x}}_t &= g(\mathbf{x}_{t-1}, \mathbf{u}_t) \\
 		\bar P_t &= G_xP_{t-1}G_x^T + dt \cdot G_uQG_u^T.
 	\end{align*}
-	\item 
+	\item Let $\mathbf{m} = (\alpha, r)$ be the polar coordinate parameters of a line in the world frame. We are given the robot's state $\mathbf{x}_{rob} = (x_{rob}, y_{rob}, \theta_{rob})$, which is the offset/yaw of the robot's base frame with respect to the world frame, and $\mathbf{x}_{cam} = (x_{cam}, y_{cam}, \theta_{cam})$, the offset/yaw of the camera's frame with respect to the robot's base frame. To transform between frames, we must first translate by the $(x_0,y_0)$ coordinates of the new origin, then rotate by the relative angle $\theta$.
+	
+	Define the (counterclockwise) rotation matrix
+	\[
+		R(\theta) = \left(\begin{array}{cc}
+			\cos(\theta) & -\sin(\theta) \\
+			\sin(\theta) & \cos(\theta)
+		\end{array}\right)
+	\]
+	TODO: Finish frame mapping and compute Jacobian.
 	\item 
 	\item 
 	\item 
@@ -97,7 +106,102 @@
 
 \section{EKF Simultaneous Localization and Mapping (SLAM)}
 \begin{enumerate}
-	\item 
+	\item In EKF SLAM, the belief state is augmented with
+	\[
+		\mathbf{x}(t) = (x(t), y(t), \theta(t), \alpha^1, r^1, \ldots, \alpha^J, r^J)
+	\]
+	where the map features are assumed to be static in the world frame, so that $\dot \alpha^j = 0$ and $\dot r^j = 0$ for all $j = 1,\ldots,J$. We can readily extend the discrete model from Problem 1. If $\omega(t) = 0$, the state transition function is
+	\[
+		\mathbf{x}_t = \left(\begin{array}{c}
+		x_t \\
+		y_t \\
+		\theta_t \\
+		\alpha_t^1 \\
+		r_t^1 \\
+		\vdots \\
+		\alpha_t^J \\
+		r_t^J
+		\end{array}\right) = \left(\begin{array}{c}
+		x_{t-1} + V_t\cos(\theta_{t-1})dt \\
+		y_{t-1} + V_t\sin(\theta_{t-1})dt \\
+		\theta_{t-1} + \omega_tdt \\
+		\alpha_{t-1}^1 \\
+		r_{t-1}^1 \\
+		\vdots \\
+		\alpha_{t-1}^J \\
+		r_{t-1}^J
+		\end{array}\right) = g(\mathbf{x}_{t-1}, \mathbf{u}_t)
+	\]
+	with Jacobians $G_x = \frac{\partial g(\mathbf{x}_{t-1}, \mathbf{u}_t)}{\partial \mathbf{x}}$ and $G_u = \frac{\partial g(\mathbf{x}_{t-1}, \mathbf{u}_t)}{\partial \mathbf{u}}$ given by
+	\[
+		G_x = \left(\begin{array}{cccccccc}
+		1 & 0 & -V_t\sin(\theta_{t-1})dt & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 1 & V_t\cos(\theta_{t-1})dt & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 1 & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 0 & 1 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 0 & 0 & 1 & \ldots & 0 & 0 \\
+		\vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\
+		0 & 0 & 0 & 0 & 0 & \ldots & 1 & 0 \\
+		0 & 0 & 0 & 0 & 0 & \ldots & 0 & 1
+		\end{array}\right) \quad \mbox{and} \quad 
+		G_u = \left(\begin{array}{cc}
+		\cos(\theta_{t-1})dt & 0 \\
+		\sin(\theta_{t-1})dt & 0 \\
+		0 & dt \\
+		0 & 0 \\
+		0 & 0 \\
+		\vdots & \vdots \\
+		0 & 0 \\
+		0 & 0
+		\end{array}\right).
+	\]
+	Similarly, when $\omega(t) \neq 0$, we have
+	\[
+		\mathbf{x}_t = \left(\begin{array}{c}
+		x_t \\
+		y_t \\
+		\theta_t \\
+		\alpha_t^1 \\
+		r_t^1 \\
+		\vdots \\
+		\alpha_t^J \\
+		r_t^J
+		\end{array}\right) = \left(\begin{array}{c}
+		x_{t-1} + \frac{V_t}{\omega_t}(\sin(\theta_{t-1}+ \omega_tdt) - \sin(\theta_{t-1})) \\
+		y_{t-1} - \frac{V_t}{\omega_t}(\cos(\theta_{t-1} + \omega_tdt) - \cos(\theta_{t-1})) \\
+		\theta_{t-1} + \omega_tdt \\
+		\alpha_{t-1}^1 \\
+		r_{t-1}^1 \\
+		\vdots \\
+		\alpha_{t-1}^J \\
+		r_{t-1}^J
+		\end{array}\right) = g(\mathbf{x}_{t-1}, \mathbf{u}_t)
+	\]
+	and Jacobians
+	\begin{align*}
+		G_x = &\left(\begin{array}{cccccccc}
+		1 & 0 & \frac{V_t}{\omega_t}(\cos(\theta_{t-1} + \omega_tdt) - \cos(\theta_{t-1})) & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 1 & \frac{V_t}{\omega_t}(\sin(\theta_{t-1} + \omega_tdt) - \sin(\theta_{t-1})) & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 1 & 0 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 0 & 1 & 0 & \ldots & 0 & 0 \\
+		0 & 0 & 0 & 0 & 1 & \ldots & 0 & 0 \\
+		\vdots & \vdots & \vdots & \vdots & \vdots & \ddots & \vdots & \vdots \\
+		0 & 0 & 0 & 0 & 0 & \ldots & 1 & 0 \\
+		0 & 0 & 0 & 0 & 0 & \ldots & 0 & 1
+		\end{array}\right) \\
+		G_u = \frac{1}{\omega_t}&\left(\begin{array}{cc}
+		\sin(\theta_t) - \sin(\theta_{t-1}) & -\frac{V_t}{\omega_t}(\sin(\theta_t) - \sin(\theta_{t-1})) + V_t\cos(\theta_t)dt \\
+		-\cos(\theta_t) + \cos(\theta_{t-1}) & \frac{V_t}{\omega_t}(\cos(\theta_t) - \cos(\theta_{t-1})) + V_t\sin(\theta_t)dt \\
+		0 & \omega_tdt \\
+		0 & dt \\
+		0 & 0 \\
+		0 & 0 \\
+		\vdots & \vdots \\
+		0 & 0 \\
+		0 & 0
+		\end{array}\right).
+	\end{align*}
+	where $\theta_t := \theta_{t-1} + \omega_tdt$.
 	\item 
 	\item 
 \end{enumerate}
