@@ -88,16 +88,98 @@
 		\bar{\mathbf{x}}_t &= g(\mathbf{x}_{t-1}, \mathbf{u}_t) \\
 		\bar P_t &= G_xP_{t-1}G_x^T + dt \cdot G_uQG_u^T.
 	\end{align*}
-	\item Let $\mathbf{m} = (\alpha, r)$ be the polar coordinate parameters of a line in the world frame. We are given the robot's state $\mathbf{x}_{rob} = (x_{rob}, y_{rob}, \theta_{rob})$, which is the offset/yaw of the robot's base frame with respect to the world frame, and $\mathbf{x}_{cam} = (x_{cam}, y_{cam}, \theta_{cam})$, the offset/yaw of the camera's frame with respect to the robot's base frame. To transform between frames, we must first translate by the $(x_0,y_0)$ coordinates of the new origin, then rotate by the relative angle $\theta$.
+	\item Let $\mathbf{m} = (\alpha, r)$ be the polar coordinate parameters of a line in the world frame. We are given the robot's state $\mathbf{x}_{rob} = (x_{rob}, y_{rob}, \theta_{rob})$, which is the offset/yaw of the robot's base frame with respect to the world frame, and $\mathbf{x}_{cam} = (x_{cam}, y_{cam}, \theta_{cam})$, the offset/yaw of the camera's frame with respect to the robot's base frame. To transform between frames, we must first translate by the $(x_0,y_0)$ coordinates of the new origin, then rotate by the relative angle $\theta$ between the frames.
 	
-	Define the (counterclockwise) rotation matrix
+	Define the (counterclockwise) rotation matrix and translation function
 	\[
 		R(\theta) = \left(\begin{array}{cc}
 			\cos(\theta) & -\sin(\theta) \\
 			\sin(\theta) & \cos(\theta)
+		\end{array}\right) \quad \mbox{and} \quad 
+		T(\mathbf{p}; \mathbf{p}_0) = \left(\begin{array}{c}
+			x + x_0 \\
+			y + y_0
+		\end{array}\right).
+	\]
+	where $\mathbf{p} = (x,y)$ and $\mathbf{p}_0 = (x_0,y_0)$. Given a point in space, the relationship between its $(x,y)$-coordinates in the old frame and $(\tilde x, \tilde y)$-coordinates in the new frame is
+	\begin{align*}
+		\left(\begin{array}{c}
+			x \\
+			y \\
+		\end{array}\right) &= T(R(\theta)\mathbf{\tilde p}; \mathbf{p}_0) 
+		= \left(\begin{array}{cc}
+		\cos(\theta) & -\sin(\theta) \\
+		\sin(\theta) & \cos(\theta)
+		\end{array}\right)\left(\begin{array}{c}
+			\tilde x \\
+			\tilde y
+		\end{array}\right) + \left(\begin{array}{c}
+			x_0 \\
+			y_0
+		\end{array}\right) \\
+		&= \left(\begin{array}{c}
+			\tilde x\cos(\theta) - \tilde y\sin(\theta) \\
+			\tilde x\sin(\theta) + \tilde y\cos(\theta)
+		\end{array}\right) + \left(\begin{array}{c}
+		x_0 \\
+		y_0
+		\end{array}\right) \\
+		\left(\begin{array}{c}
+			\tilde x \\
+			\tilde y
+		\end{array}\right) &= R(-\theta)T(\mathbf{p}; -\mathbf{p}_0)
+		= \left(\begin{array}{cc}
+		\cos(\theta) & \sin(\theta) \\
+		-\sin(\theta) & \cos(\theta)
+		\end{array}\right)\left(\begin{array}{c}
+		x - x_0 \\
+		y - y_0
+		\end{array}\right) \\
+		&= \left(\begin{array}{c}
+			x\cos(\theta) + y\sin(\theta) \\
+			-x\sin(\theta) + y\cos(\theta)
+		\end{array}\right) + \left(\begin{array}{c}
+			x_0\cos(\theta) + y_0\sin(\theta) \\
+			-x_0\sin(\theta) + y_0\cos(\theta)
+		\end{array}\right).
+	\end{align*}
+	If our line has polar parameters $(\alpha,r)$ in the old frame, it can be expressed as
+	\begin{align*}
+		x\cos(\alpha) + y\sin(\alpha) &= r \\
+		(\tilde x\cos(\theta) - \tilde y\sin(\theta) + x_0)\cos(\alpha) + (\tilde x\sin(\theta) + \tilde y\cos(\theta) + y_0)\sin(\alpha) &= r \\
+		\tilde x(\cos(\theta)\cos(\alpha) + \sin(\theta)\sin(\alpha)) + \tilde y(\cos(\theta)\sin(\alpha) -\sin(\theta)\cos(\alpha)) &= r - x_0\cos(\alpha) - y_0\sin(\alpha) \\
+		\tilde x\cos(\alpha - \theta) + \tilde y\sin(\alpha - \theta) &= r - x_0\cos(\alpha) - y_0\sin(\alpha) \\
+		\tilde x \cos(\tilde \alpha) + \tilde y\sin(\tilde \alpha) &= \tilde r
+	\end{align*}
+	where the parameters in the new frame are
+	\begin{align*}
+		\tilde \alpha = \alpha - \theta, \quad \tilde r = r - x_0\cos(\alpha) - y_0\sin(\alpha)
+	\end{align*}
+	Thus, to determine a map entry's coordinates in the camera frame, we first convert from the world frame to the robot's base frame,
+	\begin{align*}
+		\alpha_{rob} &= \alpha - \theta_{rob} \\
+		\quad r_{rob} &= r - x_{rob}\cos(\alpha) - y_{rob}\sin(\alpha),
+	\end{align*}
+	then convert from the robot's base frame to the camera frame,
+	\begin{align*}
+		\alpha_{cam} &= \alpha_{rob} - \theta_{cam} = \alpha - \theta_{rob} - \theta_{cam} \\
+		r_{cam} &= r_{rob} - x_{cam}\cos(\alpha_{rob}) - y_{cam}\sin(\alpha_{rob}) \\
+		&= r - x_{rob}\cos(\alpha) - y_{rob}\sin(\alpha) - x_{cam}\cos(\alpha - \theta_{rob}) - y_{cam}\sin(\alpha - \theta_{rob}).
+	\end{align*}
+	The mean camera frame parameters are
+	\[
+		\mathbf{h}_t = \left(\begin{array}{c}
+			\alpha - \theta - \theta_{cam} \\
+			r - x\cos(\alpha) - y\sin(\alpha) - x_{cam}\cos(\alpha - \theta) - y_{cam}\sin(\alpha - \theta)
 		\end{array}\right)
 	\]
-	TODO: Finish frame mapping and compute Jacobian.
+	and its Jacobian with respect to the belief state mean $\bar{\mathbf{x}}_t = (x,y,\theta)$ is
+	\[
+		H_t = \left(\begin{array}{ccc}
+			0 & 0 & -1 \\
+			-\cos(\alpha) & -\sin(\alpha) & -x_{cam}\sin(\alpha - \theta) + y_{cam}\cos(\alpha - \theta)
+		\end{array}\right)
+	\]
 	\item 
 	\item 
 	\item 

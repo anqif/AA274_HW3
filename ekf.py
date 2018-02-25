@@ -120,32 +120,16 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute h, Hx
-        x_rob, y_rob, th_rob = self.x
+        x, y, th = self.x
         x_cam, y_cam, th_cam = self.tf_base_to_camera
+        
+        # Convert line from world frame to camera frame.
+        h = np.array([alpha - th - th_cam,
+                      r - x*np.cos(alpha) - y*np.sin(alpha) - x_cam*np.cos(alpha - th) - y_cam*np.sin(alpha - th)])
 
-        def rotate(x, y, theta):
-            R = np.array([[np.cos(theta), -np.sin(theta)],
-                          [np.sin(theta),  np.cos(theta)]])
-            xy = np.array([[x, y]]).T
-            x_rot, y_rot = np.squeeze(R.dot(xy))
-            return np.array([x_rot, y_rot])
-
-        # Map camera from robot's base frame to world frame.
-        p_cam_w = rotate(x_cam, y_cam, th_rob)
-        p_cam_w += np.array([x_rob, y_rob])
-
-        # Project camera onto line in world frame.
-        p_lin = np.array([r*np.cos(alpha), r*np.sin(alpha)])
-        proj = p_cam_w.dot(p_lin)/np.linalg.norm(p_lin)
-
-        # Calculate magnitude and angle.
-        r_c = r - proj
-        alpha_c = alpha - th_rob - th_cam
-        h = np.array([alpha_c, r_c])
-
-        # TODO: Compute Hx
+        # Jacobian with respect to robot's mean state.
         Hx = np.array([[0, 0, -1],
-                       [0, 0, 0]])
+                       [-np.cos(alpha), -np.sin(alpha), -x_cam*np.sin(alpha - th) + y_cam*np.cos(alpha - th)]])
         ##############
 
         flipped, h = normalize_line_parameters(h)
