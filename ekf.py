@@ -257,11 +257,11 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute h, Hx (you may find the skeleton for computing Hx below useful)
-        x, y, th = self.x
+        x, y, th = self.x[:3]
         x_cam, y_cam, th_cam = self.tf_base_to_camera
 
         Hx = np.zeros((2,self.x.size))
-        h, Hx[:,:3] = map_line_to_predicted_measurement_EKF(alpha, r, self.x, self.tf_base_to_camera)
+        h, Hx[:,:3] = map_line_to_predicted_measurement_EKF(alpha, r, self.x[:3], self.tf_base_to_camera)
         # First two map lines are assumed fixed so we don't want to propagate any measurement correction to them
         if j > 1:
             Hx[0, 3+2*j] = 1
