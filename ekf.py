@@ -193,8 +193,8 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute z, R, H
-        z = np.vstack(v_list)
-        R = scipy.linalg.block_diag(R_list)
+        z = np.concatenate(v_list)
+        R = scipy.linalg.block_diag(*R_list)
         H = np.vstack(H_list)
         ##############
 
@@ -241,8 +241,8 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute z, R, H (should be identical to Localization_EKF.measurement_model above)
-        z = np.vstack(v_list)
-        R = scipy.linalg.block_diag(R_list)
+        z = np.concatenate(v_list)
+        R = scipy.linalg.block_diag(*R_list)
         H = np.vstack(H_list)
         ##############
 
@@ -282,6 +282,29 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute v_list, R_list, H_list
+        I = rawZ.shape[1]
+        J = (self.x.size - 3)/2
+
+        # Compute Mahalanobis distance.
+        def mahalanobis(j, z, R):
+            h, Hx = self.map_line_to_predicted_measurement(j)
+            v = z - h   # innovation
+            S = Hx.dot(self.P).dot(Hx.T) + R   # innovation covariance
+            d = v.T.dot(np.linalg.inv(S)).dot(v)   # Mahalanobis distance
+            return (d, v, R, Hx)
+
+        v_list = []
+        R_list = []
+        H_list = []
+        for i in range(I):
+            mahaVals = [mahalanobis(j, rawZ[:,i], rawR[i]) for j in range(J)]
+            midx = np.argmin([val[0] for val in mahaVals])
+            d_min, v_min, R_min, Hx_min = mahaVals[midx]
+
+            if d_min < self.g**2:
+                v_list += [v_min]
+                R_list += [R_min]
+                H_list += [Hx_min]
         ##############
 
         return v_list, R_list, H_list
