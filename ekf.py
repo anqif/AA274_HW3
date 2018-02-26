@@ -25,6 +25,20 @@ def transition_model_EKF(v, om, x, y, th, dt):
                        [0, dt]])
     return g, Gx, Gu
 
+# Helper function for mapping line to predicted measurement.
+def map_line_to_predicted_measurement_EKF(alpha, r, p_rob, p_cam):
+    x, y, th = p_rob
+    x_cam, y_cam, th_cam = p_cam
+    
+    # Convert line from world frame to camera frame.
+    h = np.array([alpha - th - th_cam,
+                  r - x*np.cos(alpha) - y*np.sin(alpha) - x_cam*np.cos(alpha - th) - y_cam*np.sin(alpha - th)])
+
+    # Jacobian with respect to robot's mean state.
+    Hx = np.array([[0, 0, -1],
+                   [-np.cos(alpha), -np.sin(alpha), -x_cam*np.sin(alpha - th) + y_cam*np.cos(alpha - th)]])
+    return h, Hx
+
 class EKF(object):
 
     def __init__(self, x0, P0, Q):
@@ -120,16 +134,7 @@ class Localization_EKF(EKF):
 
         #### TODO ####
         # compute h, Hx
-        x, y, th = self.x
-        x_cam, y_cam, th_cam = self.tf_base_to_camera
-        
-        # Convert line from world frame to camera frame.
-        h = np.array([alpha - th - th_cam,
-                      r - x*np.cos(alpha) - y*np.sin(alpha) - x_cam*np.cos(alpha - th) - y_cam*np.sin(alpha - th)])
-
-        # Jacobian with respect to robot's mean state.
-        Hx = np.array([[0, 0, -1],
-                       [-np.cos(alpha), -np.sin(alpha), -x_cam*np.sin(alpha - th) + y_cam*np.cos(alpha - th)]])
+        h, Hx = map_line_to_predicted_measurement_EKF(alpha, r, self.x, self.tf_base_to_camera)
         ##############
 
         flipped, h = normalize_line_parameters(h)
@@ -252,15 +257,17 @@ class SLAM_EKF(EKF):
 
         #### TODO ####
         # compute h, Hx (you may find the skeleton for computing Hx below useful)
+        x, y, th = self.x
+        x_cam, y_cam, th_cam = self.tf_base_to_camera
 
         Hx = np.zeros((2,self.x.size))
-        Hx[:,:3] = FILLMEIN
+        h, Hx[:,:3] = map_line_to_predicted_measurement_EKF(alpha, r, self.x, self.tf_base_to_camera)
         # First two map lines are assumed fixed so we don't want to propagate any measurement correction to them
         if j > 1:
-            Hx[0, 3+2*j] = FILLMEIN
-            Hx[1, 3+2*j] = FILLMEIN
-            Hx[0, 3+2*j+1] = FILLMEIN
-            Hx[1, 3+2*j+1] = FILLMEIN
+            Hx[0, 3+2*j] = 1
+            Hx[1, 3+2*j] = x*np.sin(alpha) - y*np.cos(alpha) + x_cam*np.sin(alpha - th) - y_cam*np.cos(alpha - th)
+            Hx[0, 3+2*j+1] = 0
+            Hx[1, 3+2*j+1] = 1
 
         ##############
 

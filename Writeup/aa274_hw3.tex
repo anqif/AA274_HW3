@@ -88,7 +88,7 @@
 		\bar{\mathbf{x}}_t &= g(\mathbf{x}_{t-1}, \mathbf{u}_t) \\
 		\bar P_t &= G_xP_{t-1}G_x^T + dt \cdot G_uQG_u^T.
 	\end{align*}
-	\item Let $\mathbf{m} = (\alpha, r)$ be the polar coordinate parameters of a line in the world frame. We are given the robot's state $\mathbf{x}_{rob} = (x_{rob}, y_{rob}, \theta_{rob})$, which is the offset/yaw of the robot's base frame with respect to the world frame, and $\mathbf{x}_{cam} = (x_{cam}, y_{cam}, \theta_{cam})$, the offset/yaw of the camera's frame with respect to the robot's base frame. To transform between frames, we must first translate by the $(x_0,y_0)$ coordinates of the new origin, then rotate by the relative angle $\theta$ between the frames.
+	\item See submitted code. Let $\mathbf{m} = (\alpha, r)$ be the polar coordinate parameters of a line in the world frame. We are given the robot's state $\mathbf{x}_{rob} = (x_{rob}, y_{rob}, \theta_{rob})$, which is the offset/yaw of the robot's base frame with respect to the world frame, and $\mathbf{x}_{cam} = (x_{cam}, y_{cam}, \theta_{cam})$, the offset/yaw of the camera's frame with respect to the robot's base frame. To transform between frames, we must first translate by the $(x_0,y_0)$ coordinates of the new origin, then rotate by the relative angle $\theta$ between the frames.
 	
 	Define the (counterclockwise) rotation matrix and translation function
 	\[
@@ -188,7 +188,7 @@
 
 \section{EKF Simultaneous Localization and Mapping (SLAM)}
 \begin{enumerate}
-	\item In EKF SLAM, the belief state is augmented with
+	\item See submitted code. In EKF SLAM, the belief state is augmented with
 	\[
 		\mathbf{x}(t) = (x(t), y(t), \theta(t), \alpha^1, r^1, \ldots, \alpha^J, r^J)
 	\]
@@ -284,7 +284,34 @@
 		\end{array}\right).
 	\end{align*}
 	where $\theta_t := \theta_{t-1} + \omega_tdt$.
-	\item 
+	\item See submitted code. The mean camera frame parameters for $\mathbf{m}^j = (\alpha^j, r^j)$ is
+	\[
+		\mathbf{h}_t^j = \left(\begin{array}{c}
+		\alpha^j - \theta - \theta_{cam} \\
+		r^j - x\cos(\alpha^j) - y\sin(\alpha^j) - x_{cam}\cos(\alpha^j - \theta) - y_{cam}\sin(\alpha^j - \theta)
+		\end{array}\right)
+	\]
+	and its Jacobian with respect to $\bar{\mathbf{x}}_t = (x,y,\theta,\alpha^1,r^1,\ldots, \alpha^J,r^j)$ is
+	\[
+		H_t^j = \left(\begin{array}{cccccc}
+		A_t^j & \mathbf{0} & \ldots & B_t^j & \ldots & \mathbf{0}
+		\end{array}\right) \in \mathbb{R}^{2 \times (2J + 3)}
+	\]
+	where the leftmost block is
+	\[
+		A_t^j = \left(\begin{array}{ccc}
+			0 & 0 & -1 \\
+			-\cos(\alpha^j) & -\sin(\alpha^j) & -x_{cam}\sin(\alpha^j - \theta) + y_{cam}\cos(\alpha^j - \theta)
+		\end{array}\right) \in \mathbb{R}^{3 \times 3}
+	\]
+	and the center block
+	\[
+		B_t^j = \left(\begin{array}{cc}
+			1 & 0 \\
+			x\sin(\alpha^j) - y\cos(\alpha^j) + x_{cam}\sin(\alpha^j - \theta) -y_{cam}\cos(\alpha^j - \theta) & 1
+		\end{array}\right) \in \mathbb{R}^{2 \times 2}
+	\]
+	begins at column $4 + 2(j-1) = 2(j+1)$.
 	\item 
 \end{enumerate}
 
