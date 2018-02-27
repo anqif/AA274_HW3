@@ -180,10 +180,37 @@
 			-\cos(\alpha) & -\sin(\alpha) & -x_{cam}\sin(\alpha - \theta) + y_{cam}\cos(\alpha - \theta)
 		\end{array}\right)
 	\]
-	\item 
-	\item 
-	\item 
-	\item 
+	\item See submitted code. Let $\mathbf{h}_t^j$ be a predicted measurement and $\mathbf{z}_t^i$ be an observation. Define the innovation to be $\mathbf{v}_t^{ij} = \mathbf{z}_t^i - \mathbf{h}_t^j$ with covariance $S_t^{ij} = H_t^j \bar P_t H_t^{j^T} + R_t^i$, where $R_t^i$ is the covariance of $\mathbf{z}_t^i$. The Mahalanobis distance is
+	\[
+		d_t^{ij} = \mathbf{v}_t^{ij^T} (S_t^{ij})^{-1} \mathbf{v}_t^{ij}.
+	\]
+	We associate each observation with the map entry with the least Mahalanobis distance. To avoid corrupted measurements that do not correspond to any map entries, we introduce a validation gate $g$ and consider only associations where $d_t^{ij} < g^2$.
+	\item See submitted code. We stack the innovation vectors, covariance matrices, and Jacobians with respect to $\mathbf{x}$ into
+	\[
+		\mathbf{z}_t = \left(\begin{array}{c}
+			\mathbf{v}_t^1 \\
+			\vdots \\
+			\mathbf{v}_t^K
+		\end{array}\right), \quad
+		R_t = \left(\begin{array}{ccc}
+			R_t^1 & & 0 \\
+			 & \ddots & \\
+			0 & & R_t^K
+		\end{array}\right), \quad
+		H_t = \left(\begin{array}{c}
+			H_t^1 \\
+			\vdots \\
+			H_t^K
+		\end{array}\right).
+	\]
+	\item See submitted code. The standard EKF measurement correction is
+	\begin{align*}
+		\Sigma_t &= H_t \bar P_t H_t^T + R_t \\
+		K_t &= \bar P_t H_t^T \Sigma_t^{-1} \\
+		x_t &= \bar x_t + K_t \mathbf{z}_t \\
+		P_t &= \bar P_t - K_t \Sigma_t K_t^T
+	\end{align*}
+	\item See submitted code. TODO: Describe added uncertainty.
 \end{enumerate}
 
 \section{EKF Simultaneous Localization and Mapping (SLAM)}
@@ -312,7 +339,7 @@
 		\end{array}\right) \in \mathbb{R}^{2 \times 2}
 	\]
 	begins at column $4 + 2(j-1) = 2(j+1)$.
-	\item 
+	\item See submitted code.
 \end{enumerate}
 
 \section{Turtlebot Localization}
