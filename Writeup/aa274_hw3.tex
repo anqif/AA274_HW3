@@ -210,7 +210,15 @@
 		x_t &= \bar x_t + K_t \mathbf{z}_t \\
 		P_t &= \bar P_t - K_t \Sigma_t K_t^T
 	\end{align*}
-	\item See submitted code. TODO: Describe added uncertainty.
+	\item See submitted code. I inject extra uncertainty into the system by adding Gaussian noise to the scanner measurements. Specifically, the range data is perturbed by a standard normal error term subject to the minimum/maximum bounds, i.e. given a range observation $\rho_i$, the scanner returns
+	\[
+		\tilde \rho_i = \max(\min(\rho_i + \epsilon_i, U), L) \quad \mbox{for } \epsilon_i \sim \mathcal{N}(0,1)
+	\]
+	where $L =$ \verb|range_min| and $U =$ \verb|range_max| of the particular scan update. The variance of the perturbed term is approximately
+	\[
+		Var(\tilde \rho_i) \approx Var(\rho_i) + Var(\epsilon_i) = Var(\rho_i) + 1,
+	\]
+	where for mathematical simplicity, I have ignored the effect of the bounds. In this simulation, \verb|var_rho| $= 0.05 + 1 = 1.05$.
 \end{enumerate}
 
 \section{EKF Simultaneous Localization and Mapping (SLAM)}
