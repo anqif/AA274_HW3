@@ -9,7 +9,8 @@ LineExtractionParams = {'MIN_SEG_LENGTH': 0.1,             # minimum length of e
 NoiseParams = {'P0': 0.01*np.eye(3),  # initial state covariance (x0 comes from ground truth; nonzero in case of timing mismatch)
                'Q': 0.1*np.eye(2),    # control noise covariance (corresponding to dt = 1 second)
                'var_theta': 0.03,     # laser scan noise variance in theta measurement (per point)
-               'var_rho': 0.05,       # laser scan noise variance in rho measurement (per point)
+               # 'var_rho': 0.05,       # laser scan noise variance in rho measurement (per point)
+               'var_rho': 1.05,       # updated variance/stdev for noisy scanner measurements.
                'g': 3.,               # validation gate (essentially maximum z-score)
                'std_alpha': 0.1,      # noisy map stdev in alpha for EKF_SLAM (per line)
                'std_r': 0.2}          # noisy map stdev in r for EKF_SLAM (per line)
